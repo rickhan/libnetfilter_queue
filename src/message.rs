@@ -101,6 +101,16 @@ impl<'a> Message<'a> {
         self.payload::<IPHeader>()
     }
 
+    /// 安全获取 NFQUEUE payload slice
+    pub unsafe fn payload_slice(&self) -> Result<&[u8], &'static str> {
+        let mut ptr: *mut u8 = std::ptr::null_mut();
+        let len = nfq_get_payload(self.ptr, &mut ptr as *mut *mut u8);
+        if len < 0 {
+            return Err("Failed to get NFQUEUE payload");
+        }
+        Ok(std::slice::from_raw_parts(ptr, len as usize))
+    }
+
     /// Parse a sized `Payload` from the message
     ///
     /// The size of the `Payload` must be equal to the value that `handle.start` was called with.
