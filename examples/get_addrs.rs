@@ -1,8 +1,8 @@
 extern crate netfilter_queue as nfq;
 
 use nfq::handle::{Handle, ProtocolFamily};
+use nfq::message::{IPHeader, Message};
 use nfq::queue::{Verdict, VerdictHandler};
-use nfq::message::{Message, IPHeader};
 
 fn main() {
     let mut handle = Handle::new().ok().unwrap();
@@ -25,7 +25,7 @@ impl VerdictHandler for Decider {
         // Note that the queue was set and handle was started with `_sized`
         match unsafe { message.ip_header() } {
             Ok(ip_header) => println!("saddr: {}, daddr: {}", ip_header.saddr(), ip_header.daddr()),
-            Err(_) => ()
+            Err(_) => (),
         };
 
         Verdict::Accept

@@ -1,8 +1,8 @@
 extern crate netfilter_queue as nfq;
 
 use nfq::handle::{Handle, ProtocolFamily};
-use nfq::queue::{CopyMode, Verdict, VerdictHandler};
 use nfq::message::Message;
+use nfq::queue::{CopyMode, Verdict, VerdictHandler};
 
 fn main() {
     let mut handle = Handle::new().ok().unwrap();
@@ -30,7 +30,7 @@ impl VerdictHandler for Counter {
             c if c % 2 == 0 => {
                 println!("Accepting even packet: {}", c);
                 Verdict::Accept
-            },
+            }
             c @ _ => {
                 println!("Dropping odd packet: {}", c);
                 Verdict::Drop

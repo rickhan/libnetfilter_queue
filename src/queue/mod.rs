@@ -8,11 +8,11 @@ use libc::*;
 use std::mem;
 use std::ptr::null;
 
+pub use self::verdict::{QueueHandle, Verdict};
 use error::*;
-use util::*;
-use message::{Message, Payload};
-pub use self::verdict::{Verdict, QueueHandle};
 use lock::NFQ_LOCK as LOCK;
+use message::{Message, Payload};
+use util::*;
 
 use ffi::*;
 
@@ -27,20 +27,22 @@ pub enum CopyMode {
     /// Packet metadata only
     Metadata,
     /// If you copy the packet, you must also specify the size of the packet to copy
-    Packet(u16)
+    Packet(u16),
 }
 
-
-
-extern fn queue_callback<F: PacketHandler>(qh: *mut nfq_q_handle,
-                                           nfmsg: *mut nfgenmsg,
-                                           nfad: *mut nfq_data,
-                                           cdata: *mut c_void) -> c_int {
+extern "C" fn queue_callback<F: PacketHandler>(
+    qh: *mut nfq_q_handle,
+    nfmsg: *mut nfgenmsg,
+    nfad: *mut nfq_data,
+    cdata: *mut c_void,
+) -> c_int {
     let queue_ptr: *mut Queue<F> = unsafe { mem::transmute(cdata) };
     let queue: &mut Queue<F> = unsafe { as_mut(&queue_ptr).unwrap() };
     let message = Message::new(nfmsg, nfad);
 
-    queue.callback.handle(QueueHandle::new(qh), message.as_ref()) as c_int
+    queue
+        .callback
+        .handle(QueueHandle::new(qh), message.as_ref()) as c_int
 }
 
 /// A handle to an NFQueue queue and its data.
@@ -52,7 +54,7 @@ extern fn queue_callback<F: PacketHandler>(qh: *mut nfq_q_handle,
 /// `QueueHandle` should be used within packet-handling for `Sync` operations.
 pub struct Queue<F: PacketHandler> {
     ptr: *mut nfq_q_handle,
-    callback: F
+    callback: F,
 }
 
 impl<F: PacketHandler> Drop for Queue<F> {
@@ -66,9 +68,11 @@ impl<F: PacketHandler> Drop for Queue<F> {
 
 impl<F: PacketHandler> Queue<F> {
     #[doc(hidden)]
-    pub fn new(handle: *mut nfq_handle,
-               queue_number: uint16_t,
-               packet_handler: F) -> Result<Box<Queue<F>>, Error> {
+    pub fn new(
+        handle: *mut nfq_handle,
+        queue_number: uint16_t,
+        packet_handler: F,
+    ) -> Result<Box<Queue<F>>, Error> {
         let _lock = LOCK.lock().unwrap();
 
         let nfq_ptr: *const nfq_q_handle = null();
@@ -79,10 +83,12 @@ impl<F: PacketHandler> Queue<F> {
         let queue_ptr: *mut Queue<F> = &mut *queue;
 
         let ptr = unsafe {
-            nfq_create_queue(handle,
-                             queue_number,
-                             queue_callback::<F>,
-                             mem::transmute(queue_ptr))
+            nfq_create_queue(
+                handle,
+                queue_number,
+                queue_callback::<F>,
+                mem::transmute(queue_ptr),
+            )
         };
 
         if ptr.is_null() {
@@ -99,16 +105,20 @@ impl<F: PacketHandler> Queue<F> {
         let copy_mode = match mode {
             CopyMode::None => NFQNL_COPY_NONE,
             CopyMode::Metadata => NFQNL_COPY_META,
-            CopyMode::Packet(_) => NFQNL_COPY_PACKET
+            CopyMode::Packet(_) => NFQNL_COPY_PACKET,
         } as uint8_t;
         let range = match mode {
             CopyMode::Packet(r) => r,
-            _ => 0
+            _ => 0,
         } as uint32_t;
 
         let res = unsafe { nfq_set_mode(self.ptr, copy_mode, range) };
         if res != 0 {
-            Err(error(Reason::SetQueueMode, "Failed to set queue mode", Some(res)))
+            Err(error(
+                Reason::SetQueueMode,
+                "Failed to set queue mode",
+                Some(res),
+            ))
         } else {
             Ok(())
         }
@@ -129,7 +139,11 @@ impl<F: PacketHandler> Queue<F> {
     pub fn set_max_length(&mut self, length: u32) -> Result<(), Error> {
         let res = unsafe { nfq_set_queue_maxlen(self.ptr, length) };
         if res != 0 {
-            Err(error(Reason::SetQueueMaxlen, "Failed to set queue maxlen", Some(res)))
+            Err(error(
+                Reason::SetQueueMaxlen,
+                "Failed to set queue maxlen",
+                Some(res),
+            ))
         } else {
             Ok(())
         }
@@ -153,18 +167,26 @@ pub trait VerdictHandler {
 }
 
 #[allow(non_snake_case)]
-impl<V> PacketHandler for V where V: VerdictHandler {
+impl<V> PacketHandler for V
+where
+    V: VerdictHandler,
+{
     fn handle(&mut self, hq: QueueHandle, message: Result<&Message, &Error>) -> i32 {
         let NULL: *const c_uchar = null();
         match message {
-            Ok(m) => { let _ = Verdict::set_verdict(hq, m.header.id(), self.decide(m), 0, NULL); },
-            Err(_) => ()
+            Ok(m) => {
+                let _ = Verdict::set_verdict(hq, m.header.id(), self.decide(m), 0, NULL);
+            }
+            Err(_) => (),
         }
         0
     }
 }
 
-impl<F> VerdictHandler for F where F: FnMut(&Message) -> Verdict {
+impl<F> VerdictHandler for F
+where
+    F: FnMut(&Message) -> Verdict,
+{
     fn decide(&mut self, message: &Message) -> Verdict {
         self(message)
     }

@@ -1,10 +1,10 @@
 extern crate netfilter_queue as nfq;
 
-use std::ptr::null;
-use nfq::handle::{Handle, ProtocolFamily};
-use nfq::queue::{CopyMode, Verdict, PacketHandler, QueueHandle};
-use nfq::message::Message;
 use nfq::error::Error;
+use nfq::handle::{Handle, ProtocolFamily};
+use nfq::message::Message;
+use nfq::queue::{CopyMode, PacketHandler, QueueHandle, Verdict};
+use std::ptr::null;
 
 fn main() {
     let mut handle = Handle::new().ok().unwrap();
@@ -27,8 +27,8 @@ impl PacketHandler for Decider {
         match message {
             Ok(m) => {
                 let _ = Verdict::set_verdict(hq, m.header.id(), Verdict::Accept, 0, null());
-            },
-            Err(_) => ()
+            }
+            Err(_) => (),
         }
         0
     }

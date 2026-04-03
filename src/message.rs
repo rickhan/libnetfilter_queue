@@ -2,15 +2,15 @@
 //!
 //! Analagous to <http://netfilter.org/projects/libnetfilter_queue/doxygen/group__Parsing.html>
 
-use libc::*;
-use std::mem;
-use std::ptr::null;
-use std::net::Ipv4Addr;
-use num::traits::PrimInt;
 use error::*;
-use util::*;
-use ffi::*;
 pub use ffi::nfqnl_msg_packet_hdr as Header;
+use ffi::*;
+use libc::*;
+use num::traits::PrimInt;
+use std::mem;
+use std::net::Ipv4Addr;
+use std::ptr::null;
+use util::*;
 
 /// Structs impl'ing `Payload` must be sized correctly for the payload data that mill be transmuted to it
 pub trait Payload {}
@@ -28,7 +28,7 @@ pub struct IPHeader {
     pub protocol_raw: u8,
     pub checksum_raw: u16,
     pub saddr_raw: u32,
-    pub daddr_raw: u32
+    pub daddr_raw: u32,
 }
 
 impl IPHeader {
@@ -46,10 +46,12 @@ impl IPHeader {
 #[inline]
 fn addr_to_ipv4(src: &u32) -> Ipv4Addr {
     let octets: [u8; 4] = unsafe { mem::transmute(*src) };
-    Ipv4Addr::new(u8::from_be(octets[0]),
-                  u8::from_be(octets[1]),
-                  u8::from_be(octets[2]),
-                  u8::from_be(octets[3]))
+    Ipv4Addr::new(
+        u8::from_be(octets[0]),
+        u8::from_be(octets[1]),
+        u8::from_be(octets[2]),
+        u8::from_be(octets[3]),
+    )
 }
 
 impl Payload for IPHeader {}
@@ -65,7 +67,7 @@ pub struct Message<'a> {
     /// A verdict cannot be set without the packet's id
     /// parsed from the header.
     /// For convenience, the header is always parsed into the message.
-    pub header: &'a Header
+    pub header: &'a Header,
 }
 
 impl<'a> Drop for Message<'a> {
@@ -79,13 +81,13 @@ impl<'a> Message<'a> {
             let ptr = nfq_get_msg_packet_hdr(ptr);
             match as_ref(&ptr) {
                 Some(h) => h,
-                None => return Err(error(Reason::GetHeader, "Failed to get header", None))
+                None => return Err(error(Reason::GetHeader, "Failed to get header", None)),
             }
         };
         Ok(Message {
             raw: raw,
             ptr: ptr,
-            header: header
+            header: header,
         })
     }
 
@@ -108,13 +110,26 @@ impl<'a> Message<'a> {
     pub unsafe fn payload<A: Payload>(&self) -> Result<&A, Error> {
         let data: *const A = null();
         let ptr: *mut *mut A = &mut (data as *mut A);
-        let _ = match nfq_get_payload(self.ptr, ptr as *mut *mut c_uchar) {
-            -1 => return Err(error(Reason::GetPayload, "Failed to get payload", Some(-1))),
-            _ => ()
-        };
-        match as_ref(&data) {
-            Some(payload) => Ok(payload),
-            None => Err(error(Reason::GetPayload, "Failed to get payload", None))
+        let len = nfq_get_payload(self.ptr, ptr as *mut *mut c_uchar);
+        if len < 0 {
+            return Err(error(Reason::GetPayload, "Failed to get payload", Some(-1)));
         }
+        let len = len as usize;
+        // 确保长度足够读取 A
+        if len < mem::size_of::<A>() {
+            return Err(error(
+                Reason::GetPayload,
+                "Payload too small",
+                Some(len as i32),
+            ));
+        }
+        // 构造安全的引用
+        let slice = slice::from_raw_parts(ptr, len); // &[u8]
+        let a_ref = &*(slice.as_ptr() as *const A);
+        Ok(a_ref)
+        // match as_ref(&data) {
+        //     Some(payload) => Ok(payload),
+        //     None => Err(error(Reason::GetPayload, "Failed to get payload", None))
+        // }
     }
 }

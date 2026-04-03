@@ -2,14 +2,14 @@
 //!
 //! Analagous to <http://netfilter.org/projects/libnetfilter_queue/doxygen/group__LibrarySetup.html>
 
-use libc::*;
-use std::mem;
+use errno::errno;
 use error;
 use error::*;
-use queue::{Queue, PacketHandler};
-use message::Payload;
+use libc::*;
 use lock::NFQ_LOCK as LOCK;
-use errno::errno;
+use message::Payload;
+use queue::{PacketHandler, Queue};
+use std::mem;
 
 use ffi::*;
 
@@ -20,14 +20,14 @@ pub enum ProtocolFamily {
     /// IPv4 Address Family
     INET = AF_INET as isize,
     /// IPv6 Address Family
-    INET6 = AF_INET6 as isize
+    INET6 = AF_INET6 as isize,
 }
 
 /// A handle into NFQueue
 ///
 /// This is needed for library setup.
 pub struct Handle {
-    ptr: *mut nfq_handle
+    ptr: *mut nfq_handle,
 }
 
 impl Drop for Handle {
@@ -50,7 +50,7 @@ impl Handle {
         if ptr.is_null() {
             Err(error(Reason::OpenHandle, "Failed to allocate handle", None))
         } else {
-            Ok(Handle{ ptr: ptr })
+            Ok(Handle { ptr: ptr })
         }
     }
 
@@ -81,9 +81,11 @@ impl Handle {
     }
 
     /// Create a new Queue
-    pub fn queue<F: PacketHandler>(&mut self,
-                                   queue_number: u16,
-                                   handler: F) -> Result<Box<Queue<F>>, Error> {
+    pub fn queue<F: PacketHandler>(
+        &mut self,
+        queue_number: u16,
+        handler: F,
+    ) -> Result<Box<Queue<F>>, Error> {
         Queue::new(self.ptr, queue_number as uint16_t, handler)
     }
 
@@ -103,15 +105,19 @@ impl Handle {
 
             loop {
                 match recv(fd, buffer, length as u64, 0) {
-                    rv if rv >=0 => { 
-                        nfq_handle_packet(self.ptr, buffer as *mut c_char, length as i32);
-                    },
+                    rv if rv >= 0 => {
+                        nfq_handle_packet(self.ptr, buffer as *mut c_char, rv as i32);
+                    }
                     _ => {
                         free(buffer as *mut c_void);
                         let e = errno();
                         // trim() because as_str() is unstable
-                        let err = error::error(error::Reason::GetPayload, format!("{}", e).trim(), Some(e.0 as i32));
-                        return Err(err)
+                        let err = error::error(
+                            error::Reason::GetPayload,
+                            format!("{}", e).trim(),
+                            Some(e.0 as i32),
+                        );
+                        return Err(err);
                     }
                 }
             }

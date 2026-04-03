@@ -1,9 +1,9 @@
 #![allow(missing_docs)]
 
+use ffi::nfq_errno;
 use libc::c_int;
 use std::error::Error as Base;
 use std::fmt;
-use ffi::nfq_errno;
 
 #[derive(Debug)]
 pub enum Reason {
@@ -26,8 +26,10 @@ pub struct Error {
 
 impl fmt::Debug for Error {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        let msg = format!("{:?}: {:?} (cause: {:?})",
-                          self.reason, self.description, self.cause);
+        let msg = format!(
+            "{:?}: {:?} (cause: {:?})",
+            self.reason, self.description, self.cause
+        );
         formatter.write_str(msg.as_ref())
     }
 }
@@ -52,7 +54,7 @@ pub fn error(reason: Reason, msg: &str, res: Option<c_int>) -> Error {
     let errno = unsafe { nfq_errno };
     let desc = match res {
         Some(r) => format!("{} (errno: {}, res: {})", msg, errno, r),
-        None => format!("{}, (errno: {})", msg, errno)
+        None => format!("{}, (errno: {})", msg, errno),
     };
     Error {
         reason: reason,

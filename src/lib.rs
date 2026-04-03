@@ -4,21 +4,21 @@
 //! and write your own userspace programs to process these queues.
 #![deny(missing_docs)]
 
-extern crate libc;
 extern crate errno;
+extern crate libc;
 extern crate num;
 #[macro_use]
 extern crate lazy_static;
 
 mod ffi;
 
-mod util;
 mod lock;
+mod util;
 
 pub mod error;
 pub mod handle;
-pub mod queue;
 pub mod message;
+pub mod queue;
 
 //#[cfg(test)]
 //mod test;
