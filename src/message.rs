@@ -124,7 +124,7 @@ impl<'a> Message<'a> {
             ));
         }
         // 构造安全的引用
-        let slice = slice::from_raw_parts(ptr, len); // &[u8]
+        let slice = std::slice::from_raw_parts(ptr, len); // &[u8]
         let a_ref = &*(slice.as_ptr() as *const A);
         Ok(a_ref)
         // match as_ref(&data) {
